@@ -1,0 +1,5 @@
+pytest>=8.0
+ruff>=0.3
+# cd frontend
+# npm run dev
+# python run_backend.py
