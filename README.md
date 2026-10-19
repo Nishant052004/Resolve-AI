@@ -1,8 +1,19 @@
-# pytest cache directory #
+# @babel/code-frame
 
-This directory contains data from the pytest's cache plugin,
-which provides the `--lf` and `--ff` options, as well as the `cache` fixture.
+> Generate errors that contain a code frame that point to source locations.
 
-**Do not** commit this to version control.
+See our website [@babel/code-frame](https://babeljs.io/docs/babel-code-frame) for more information.
 
-See [the docs](https://docs.pytest.org/en/stable/how-to/cache.html) for more information.
+## Install
+
+Using npm:
+
+```sh
+npm install --save-dev @babel/code-frame
+```
+
+or using yarn:
+
+```sh
+yarn add @babel/code-frame --dev
+```
