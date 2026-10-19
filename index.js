@@ -1,276 +1,217 @@
 'use strict';
 
-class QuickLRU {
-	constructor(options = {}) {
-		if (!(options.maxSize && options.maxSize > 0)) {
-			throw new TypeError('`maxSize` must be a number greater than 0');
-		}
+Object.defineProperty(exports, '__esModule', { value: true });
 
-		if (typeof options.maxAge === 'number' && options.maxAge === 0) {
-			throw new TypeError('`maxAge` must be a number greater than 0');
-		}
+var picocolors = require('picocolors');
+var jsTokens = require('js-tokens');
+var helperValidatorIdentifier = require('@babel/helper-validator-identifier');
 
-		this.maxSize = options.maxSize;
-		this.maxAge = options.maxAge || Infinity;
-		this.onEviction = options.onEviction;
-		this.cache = new Map();
-		this.oldCache = new Map();
-		this._size = 0;
-	}
-
-	_emitEvictions(cache) {
-		if (typeof this.onEviction !== 'function') {
-			return;
-		}
-
-		for (const [key, item] of cache) {
-			this.onEviction(key, item.value);
-		}
-	}
-
-	_deleteIfExpired(key, item) {
-		if (typeof item.expiry === 'number' && item.expiry <= Date.now()) {
-			if (typeof this.onEviction === 'function') {
-				this.onEviction(key, item.value);
-			}
-
-			return this.delete(key);
-		}
-
-		return false;
-	}
-
-	_getOrDeleteIfExpired(key, item) {
-		const deleted = this._deleteIfExpired(key, item);
-		if (deleted === false) {
-			return item.value;
-		}
-	}
-
-	_getItemValue(key, item) {
-		return item.expiry ? this._getOrDeleteIfExpired(key, item) : item.value;
-	}
-
-	_peek(key, cache) {
-		const item = cache.get(key);
-
-		return this._getItemValue(key, item);
-	}
-
-	_set(key, value) {
-		this.cache.set(key, value);
-		this._size++;
-
-		if (this._size >= this.maxSize) {
-			this._size = 0;
-			this._emitEvictions(this.oldCache);
-			this.oldCache = this.cache;
-			this.cache = new Map();
-		}
-	}
-
-	_moveToRecent(key, item) {
-		this.oldCache.delete(key);
-		this._set(key, item);
-	}
-
-	* _entriesAscending() {
-		for (const item of this.oldCache) {
-			const [key, value] = item;
-			if (!this.cache.has(key)) {
-				const deleted = this._deleteIfExpired(key, value);
-				if (deleted === false) {
-					yield item;
-				}
-			}
-		}
-
-		for (const item of this.cache) {
-			const [key, value] = item;
-			const deleted = this._deleteIfExpired(key, value);
-			if (deleted === false) {
-				yield item;
-			}
-		}
-	}
-
-	get(key) {
-		if (this.cache.has(key)) {
-			const item = this.cache.get(key);
-
-			return this._getItemValue(key, item);
-		}
-
-		if (this.oldCache.has(key)) {
-			const item = this.oldCache.get(key);
-			if (this._deleteIfExpired(key, item) === false) {
-				this._moveToRecent(key, item);
-				return item.value;
-			}
-		}
-	}
-
-	set(key, value, {maxAge = this.maxAge} = {}) {
-		const expiry =
-			typeof maxAge === 'number' && maxAge !== Infinity ?
-				Date.now() + maxAge :
-				undefined;
-		if (this.cache.has(key)) {
-			this.cache.set(key, {
-				value,
-				expiry
-			});
-		} else {
-			this._set(key, {value, expiry});
-		}
-
-		return this;
-	}
-
-	has(key) {
-		if (this.cache.has(key)) {
-			return !this._deleteIfExpired(key, this.cache.get(key));
-		}
-
-		if (this.oldCache.has(key)) {
-			return !this._deleteIfExpired(key, this.oldCache.get(key));
-		}
-
-		return false;
-	}
-
-	peek(key) {
-		if (this.cache.has(key)) {
-			return this._peek(key, this.cache);
-		}
-
-		if (this.oldCache.has(key)) {
-			return this._peek(key, this.oldCache);
-		}
-	}
-
-	expiresIn(key) {
-		const item = this.cache.get(key) || this.oldCache.get(key);
-		if (item) {
-			return item.expiry ? item.expiry - Date.now() : Infinity;
-		}
-	}
-
-	delete(key) {
-		const deleted = this.cache.delete(key);
-		if (deleted) {
-			this._size--;
-		}
-
-		return this.oldCache.delete(key) || deleted;
-	}
-
-	clear() {
-		this.cache.clear();
-		this.oldCache.clear();
-		this._size = 0;
-	}
-	
-	resize(newSize) {
-		if (!(newSize && newSize > 0)) {
-			throw new TypeError('`maxSize` must be a number greater than 0');
-		}
-
-		const items = [...this._entriesAscending()];
-		const removeCount = items.length - newSize;
-		if (removeCount < 0) {
-			this.cache = new Map(items);
-			this.oldCache = new Map();
-			this._size = items.length;
-		} else {
-			if (removeCount > 0) {
-				this._emitEvictions(items.slice(0, removeCount));
-			}
-
-			this.oldCache = new Map(items.slice(removeCount));
-			this.cache = new Map();
-			this._size = 0;
-		}
-
-		this.maxSize = newSize;
-	}
-
-	* keys() {
-		for (const [key] of this) {
-			yield key;
-		}
-	}
-
-	* values() {
-		for (const [, value] of this) {
-			yield value;
-		}
-	}
-
-	* [Symbol.iterator]() {
-		for (const item of this.cache) {
-			const [key, value] = item;
-			const deleted = this._deleteIfExpired(key, value);
-			if (deleted === false) {
-				yield [key, value.value];
-			}
-		}
-
-		for (const item of this.oldCache) {
-			const [key, value] = item;
-			if (!this.cache.has(key)) {
-				const deleted = this._deleteIfExpired(key, value);
-				if (deleted === false) {
-					yield [key, value.value];
-				}
-			}
-		}
-	}
-
-	* entriesDescending() {
-		let items = [...this.cache];
-		for (let i = items.length - 1; i >= 0; --i) {
-			const item = items[i];
-			const [key, value] = item;
-			const deleted = this._deleteIfExpired(key, value);
-			if (deleted === false) {
-				yield [key, value.value];
-			}
-		}
-
-		items = [...this.oldCache];
-		for (let i = items.length - 1; i >= 0; --i) {
-			const item = items[i];
-			const [key, value] = item;
-			if (!this.cache.has(key)) {
-				const deleted = this._deleteIfExpired(key, value);
-				if (deleted === false) {
-					yield [key, value.value];
-				}
-			}
-		}
-	}
-
-	* entriesAscending() {
-		for (const [key, value] of this._entriesAscending()) {
-			yield [key, value.value];
-		}
-	}
-
-	get size() {
-		if (!this._size) {
-			return this.oldCache.size;
-		}
-
-		let oldCacheSize = 0;
-		for (const key of this.oldCache.keys()) {
-			if (!this.cache.has(key)) {
-				oldCacheSize++;
-			}
-		}
-
-		return Math.min(this._size + oldCacheSize, this.maxSize);
-	}
+function isColorSupported() {
+  return (typeof process === "object" && (process.env.FORCE_COLOR === "0" || process.env.FORCE_COLOR === "false") ? false : picocolors.isColorSupported
+  );
+}
+const compose = (f, g) => v => f(g(v));
+function buildDefs(colors) {
+  return {
+    keyword: colors.cyan,
+    capitalized: colors.yellow,
+    jsxIdentifier: colors.yellow,
+    punctuator: colors.yellow,
+    number: colors.magenta,
+    string: colors.green,
+    regex: colors.magenta,
+    comment: colors.gray,
+    invalid: compose(compose(colors.white, colors.bgRed), colors.bold),
+    gutter: colors.gray,
+    marker: compose(colors.red, colors.bold),
+    message: compose(colors.red, colors.bold),
+    reset: colors.reset
+  };
+}
+const defsOn = buildDefs(picocolors.createColors(true));
+const defsOff = buildDefs(picocolors.createColors(false));
+function getDefs(enabled) {
+  return enabled ? defsOn : defsOff;
 }
 
-module.exports = QuickLRU;
+const sometimesKeywords = new Set(["as", "async", "from", "get", "of", "set"]);
+const NEWLINE$1 = /\r\n|[\n\r\u2028\u2029]/;
+const BRACKET = /^[()[\]{}]$/;
+let tokenize;
+const JSX_TAG = /^[a-z][\w-]*$/i;
+const getTokenType = function (token, offset, text) {
+  if (token.type === "name") {
+    const tokenValue = token.value;
+    if (helperValidatorIdentifier.isKeyword(tokenValue) || helperValidatorIdentifier.isStrictReservedWord(tokenValue, true) || sometimesKeywords.has(tokenValue)) {
+      return "keyword";
+    }
+    if (JSX_TAG.test(tokenValue) && (text[offset - 1] === "<" || text.slice(offset - 2, offset) === "</")) {
+      return "jsxIdentifier";
+    }
+    const firstChar = String.fromCodePoint(tokenValue.codePointAt(0));
+    if (firstChar !== firstChar.toLowerCase()) {
+      return "capitalized";
+    }
+  }
+  if (token.type === "punctuator" && BRACKET.test(token.value)) {
+    return "bracket";
+  }
+  if (token.type === "invalid" && (token.value === "@" || token.value === "#")) {
+    return "punctuator";
+  }
+  return token.type;
+};
+tokenize = function* (text) {
+  let match;
+  while (match = jsTokens.default.exec(text)) {
+    const token = jsTokens.matchToToken(match);
+    yield {
+      type: getTokenType(token, match.index, text),
+      value: token.value
+    };
+  }
+};
+function highlight(text) {
+  if (text === "") return "";
+  const defs = getDefs(true);
+  let highlighted = "";
+  for (const {
+    type,
+    value
+  } of tokenize(text)) {
+    if (type in defs) {
+      highlighted += value.split(NEWLINE$1).map(str => defs[type](str)).join("\n");
+    } else {
+      highlighted += value;
+    }
+  }
+  return highlighted;
+}
+
+let deprecationWarningShown = false;
+const NEWLINE = /\r\n|[\n\r\u2028\u2029]/;
+function getMarkerLines(loc, source, opts, startLineBaseZero) {
+  const startLoc = Object.assign({
+    column: 0,
+    line: -1
+  }, loc.start);
+  const endLoc = Object.assign({}, startLoc, loc.end);
+  const {
+    linesAbove = 2,
+    linesBelow = 3
+  } = opts || {};
+  const startLine = startLoc.line - startLineBaseZero;
+  const startColumn = startLoc.column;
+  const endLine = endLoc.line - startLineBaseZero;
+  const endColumn = endLoc.column;
+  let start = Math.max(startLine - (linesAbove + 1), 0);
+  let end = Math.min(source.length, endLine + linesBelow);
+  if (startLine === -1) {
+    start = 0;
+  }
+  if (endLine === -1) {
+    end = source.length;
+  }
+  const lineDiff = endLine - startLine;
+  const markerLines = {};
+  if (lineDiff) {
+    for (let i = 0; i <= lineDiff; i++) {
+      const lineNumber = i + startLine;
+      if (!startColumn) {
+        markerLines[lineNumber] = true;
+      } else if (i === 0) {
+        const sourceLength = source[lineNumber - 1].length;
+        markerLines[lineNumber] = [startColumn, sourceLength - startColumn + 1];
+      } else if (i === lineDiff) {
+        markerLines[lineNumber] = [0, endColumn];
+      } else {
+        const sourceLength = source[lineNumber - i].length;
+        markerLines[lineNumber] = [0, sourceLength];
+      }
+    }
+  } else {
+    if (startColumn === endColumn) {
+      if (startColumn) {
+        markerLines[startLine] = [startColumn, 0];
+      } else {
+        markerLines[startLine] = true;
+      }
+    } else {
+      markerLines[startLine] = [startColumn, endColumn - startColumn];
+    }
+  }
+  return {
+    start,
+    end,
+    markerLines
+  };
+}
+function codeFrameColumns(rawLines, loc, opts = {}) {
+  const shouldHighlight = opts.forceColor || isColorSupported() && opts.highlightCode;
+  const startLineBaseZero = (opts.startLine || 1) - 1;
+  const defs = getDefs(shouldHighlight);
+  const lines = rawLines.split(NEWLINE);
+  const {
+    start,
+    end,
+    markerLines
+  } = getMarkerLines(loc, lines, opts, startLineBaseZero);
+  const hasColumns = loc.start && typeof loc.start.column === "number";
+  const numberMaxWidth = String(end + startLineBaseZero).length;
+  const highlightedLines = shouldHighlight ? highlight(rawLines) : rawLines;
+  let frame = highlightedLines.split(NEWLINE, end).slice(start, end).map((line, index) => {
+    const number = start + 1 + index;
+    const paddedNumber = ` ${number + startLineBaseZero}`.slice(-numberMaxWidth);
+    const gutter = ` ${paddedNumber} |`;
+    const hasMarker = markerLines[number];
+    const lastMarkerLine = !markerLines[number + 1];
+    if (hasMarker) {
+      let markerLine = "";
+      if (Array.isArray(hasMarker)) {
+        const markerSpacing = line.slice(0, Math.max(hasMarker[0] - 1, 0)).replace(/[^\t]/g, " ");
+        const numberOfMarkers = hasMarker[1] || 1;
+        markerLine = ["\n ", defs.gutter(gutter.replace(/\d/g, " ")), " ", markerSpacing, defs.marker("^").repeat(numberOfMarkers)].join("");
+        if (lastMarkerLine && opts.message) {
+          markerLine += " " + defs.message(opts.message);
+        }
+      }
+      return [defs.marker(">"), defs.gutter(gutter), line.length > 0 ? ` ${line}` : "", markerLine].join("");
+    } else {
+      return ` ${defs.gutter(gutter)}${line.length > 0 ? ` ${line}` : ""}`;
+    }
+  }).join("\n");
+  if (opts.message && !hasColumns) {
+    frame = `${" ".repeat(numberMaxWidth + 1)}${opts.message}\n${frame}`;
+  }
+  if (shouldHighlight) {
+    return defs.reset(frame);
+  } else {
+    return frame;
+  }
+}
+function index (rawLines, lineNumber, colNumber, opts = {}) {
+  if (!deprecationWarningShown) {
+    deprecationWarningShown = true;
+    const message = "Passing lineNumber and colNumber is deprecated to @babel/code-frame. Please use `codeFrameColumns`.";
+    if (process.emitWarning) {
+      process.emitWarning(message, "DeprecationWarning");
+    } else {
+      const deprecationError = new Error(message);
+      deprecationError.name = "DeprecationWarning";
+      console.warn(new Error(message));
+    }
+  }
+  colNumber = Math.max(colNumber, 0);
+  const location = {
+    start: {
+      column: colNumber,
+      line: lineNumber
+    }
+  };
+  return codeFrameColumns(rawLines, location, opts);
+}
+
+exports.codeFrameColumns = codeFrameColumns;
+exports.default = index;
+exports.highlight = highlight;
+//# sourceMappingURL=index.js.map
