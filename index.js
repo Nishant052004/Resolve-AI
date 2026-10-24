@@ -3,72 +3,120 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.declare = declare;
-exports.declarePreset = void 0;
-const apiPolyfills = {
-  assertVersion: api => range => {
-    throwVersionError(range, api.version);
-  }
-};
-Object.assign(apiPolyfills, {
-  targets: () => () => {
-    return {};
-  },
-  assumption: () => () => {
-    return undefined;
-  },
-  addExternalDependency: () => () => {}
-});
-function declare(builder) {
-  return (api, options, dirname) => {
-    let clonedApi;
-    for (const name of Object.keys(apiPolyfills)) {
-      if (api[name]) continue;
-      clonedApi != null ? clonedApi : clonedApi = copyApiObject(api);
-      clonedApi[name] = apiPolyfills[name](clonedApi);
+exports.default = void 0;
+exports.get = get;
+exports.getDependencies = getDependencies;
+exports.isInternal = isInternal;
+exports.list = void 0;
+exports.minVersion = minVersion;
+var _t = require("@babel/types");
+var _helpersGenerated = require("./helpers-generated.js");
+const {
+  cloneNode,
+  identifier
+} = _t;
+function deep(obj, path, value) {
+  try {
+    const parts = path.split(".");
+    let last = parts.shift();
+    while (parts.length > 0) {
+      obj = obj[last];
+      last = parts.shift();
     }
-    return builder(clonedApi != null ? clonedApi : api, options || {}, dirname);
-  };
+    if (arguments.length > 2) {
+      obj[last] = value;
+    } else {
+      return obj[last];
+    }
+  } catch (e) {
+    e.message += ` (when accessing ${path})`;
+    throw e;
+  }
 }
-const declarePreset = exports.declarePreset = declare;
-function copyApiObject(api) {
-  let proto = null;
-  if (typeof api.version === "string" && api.version.startsWith("7.")) {
-    proto = Object.getPrototypeOf(api);
-    if (proto && (!hasOwnProperty.call(proto, "version") || !hasOwnProperty.call(proto, "transform") || !hasOwnProperty.call(proto, "template") || !hasOwnProperty.call(proto, "types"))) {
-      proto = null;
+function permuteHelperAST(ast, metadata, bindingName, localBindings, getDependency, adjustAst) {
+  const {
+    locals,
+    dependencies,
+    exportBindingAssignments,
+    exportName
+  } = metadata;
+  const bindings = new Set(localBindings || []);
+  if (bindingName) bindings.add(bindingName);
+  for (const [name, paths] of (Object.entries || (o => Object.keys(o).map(k => [k, o[k]])))(locals)) {
+    let newName = name;
+    if (bindingName && name === exportName) {
+      newName = bindingName;
+    } else {
+      while (bindings.has(newName)) newName = "_" + newName;
+    }
+    if (newName !== name) {
+      for (const path of paths) {
+        deep(ast, path, identifier(newName));
+      }
     }
   }
-  return Object.assign({}, proto, api);
-}
-function throwVersionError(range, version) {
-  if (typeof range === "number") {
-    if (!Number.isInteger(range)) {
-      throw new Error("Expected string or integer value.");
+  for (const [name, paths] of (Object.entries || (o => Object.keys(o).map(k => [k, o[k]])))(dependencies)) {
+    const ref = typeof getDependency === "function" && getDependency(name) || identifier(name);
+    for (const path of paths) {
+      deep(ast, path, cloneNode(ref));
     }
-    range = `^${range}.0.0-0`;
   }
-  if (typeof range !== "string") {
-    throw new Error("Expected string or integer value.");
-  }
-  const limit = Error.stackTraceLimit;
-  if (typeof limit === "number" && limit < 25) {
-    Error.stackTraceLimit = 25;
-  }
-  let err;
-  if (version.startsWith("7.")) {
-    err = new Error(`Requires Babel "^7.0.0-beta.41", but was loaded with "${version}". ` + `You'll need to update your @babel/core version.`);
-  } else {
-    err = new Error(`Requires Babel "${range}", but was loaded with "${version}". ` + `If you are sure you have a compatible version of @babel/core, ` + `it is likely that something in your build process is loading the ` + `wrong version. Inspect the stack trace of this error to look for ` + `the first entry that doesn't mention "@babel/core" or "babel-core" ` + `to see what is calling Babel.`);
-  }
-  if (typeof limit === "number") {
-    Error.stackTraceLimit = limit;
-  }
-  throw Object.assign(err, {
-    code: "BABEL_VERSION_UNSUPPORTED",
-    version,
-    range
+  adjustAst == null || adjustAst(ast, exportName, map => {
+    exportBindingAssignments.forEach(p => deep(ast, p, map(deep(ast, p))));
   });
 }
+const helperData = Object.create(null);
+function loadHelper(name) {
+  if (!helperData[name]) {
+    const helper = _helpersGenerated.default[name];
+    if (!helper) {
+      throw Object.assign(new ReferenceError(`Unknown helper ${name}`), {
+        code: "BABEL_HELPER_UNKNOWN",
+        helper: name
+      });
+    }
+    helperData[name] = {
+      minVersion: helper.minVersion,
+      build(getDependency, bindingName, localBindings, adjustAst) {
+        const ast = helper.ast();
+        permuteHelperAST(ast, helper.metadata, bindingName, localBindings, getDependency, adjustAst);
+        return {
+          nodes: ast.body,
+          globals: helper.metadata.globals
+        };
+      },
+      getDependencies() {
+        return Object.keys(helper.metadata.dependencies);
+      }
+    };
+  }
+  return helperData[name];
+}
+function get(name, getDependency, bindingName, localBindings, adjustAst) {
+  if (typeof bindingName === "object") {
+    const id = bindingName;
+    if ((id == null ? void 0 : id.type) === "Identifier") {
+      bindingName = id.name;
+    } else {
+      bindingName = undefined;
+    }
+  }
+  return loadHelper(name).build(getDependency, bindingName, localBindings, adjustAst);
+}
+function minVersion(name) {
+  return loadHelper(name).minVersion;
+}
+function getDependencies(name) {
+  return loadHelper(name).getDependencies();
+}
+function isInternal(name) {
+  var _helpers$name;
+  return (_helpers$name = _helpersGenerated.default[name]) == null ? void 0 : _helpers$name.metadata.internal;
+}
+exports.ensure = name => {
+  loadHelper(name);
+};
+const list = exports.list = Object.keys(_helpersGenerated.default).map(name => name.replace(/^_/, ""));
+var _default = exports.default = get;
 
 //# sourceMappingURL=index.js.map
