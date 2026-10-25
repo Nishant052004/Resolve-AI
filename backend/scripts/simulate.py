@@ -1,7 +1,7 @@
 """Run N simulated refund cases against a running API and print the metrics.
 
-Usage (server must be up, e.g. `uvicorn app.main:app --port 8000`):
-    python scripts/simulate.py --cases 40 --base-url http://127.0.0.1:8000
+Usage:
+    python scripts/simulate.py --cases 40 --base-url https://resolve-ai-wlim.onrender.com
 
 Profile mix (docs/metrics.md): clear-cut majority, plus high-value, fraud,
 policy-edge, and injected-tool-failure cases so every escalation path fires.
@@ -53,7 +53,7 @@ def make_case(rng: random.Random, i: int) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--base-url", default="https://resolve-ai-wlim.onrender.com")
     parser.add_argument("--cases", type=int, default=40)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()

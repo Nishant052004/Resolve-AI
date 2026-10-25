@@ -122,17 +122,22 @@ npm install
 cd ..
 ```
 
-### 2. Running Locally
+### 2. Single-Command Launch
 
-Run both the backend API and frontend dashboard with the unified runner:
+Connect and start both Frontend and Backend with a single command:
 
 ```bash
+# Connects frontend directly to the deployed Render backend (https://resolve-ai-wlim.onrender.com)
 python run.py
 ```
+*(or via npm: `npm run dev`)*
 
-Or run services individually:
+Or run locally with an internal backend:
 
 ```bash
+# Run both Backend & Frontend locally on http://127.0.0.1:8000 & http://localhost:5173
+python run.py --local
+
 # Run backend only (FastAPI on http://127.0.0.1:8000)
 python run.py --backend
 
@@ -141,9 +146,9 @@ python run.py --frontend
 ```
 
 Once running:
-- **Frontend Dashboard**: [http://localhost:5173](http://localhost:5173)
-- **Backend API**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Interactive API Docs (Swagger UI)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Frontend Dashboard**: [http://localhost:5173](http://localhost:5173) (or live on [Vercel](https://resolve-ai-umber.vercel.app))
+- **Connected Backend API**: [https://resolve-ai-wlim.onrender.com](https://resolve-ai-wlim.onrender.com)
+- **Interactive API Docs (Swagger UI)**: [https://resolve-ai-wlim.onrender.com/docs](https://resolve-ai-wlim.onrender.com/docs)
 
 ---
 
@@ -169,6 +174,10 @@ pytest
 Simulate automated refund evaluation scenarios:
 
 ```bash
+# Runs against the deployed Render backend by default:
+python backend/scripts/simulate.py --cases 40
+
+# Or test against local backend:
 python backend/scripts/simulate.py --cases 40 --base-url http://127.0.0.1:8000
 ```
 
