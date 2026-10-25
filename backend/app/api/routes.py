@@ -303,6 +303,7 @@ def business_metrics(db: Session = Depends(get_db)):
         if isinstance(approvals, str):
             try:
                 import json
+
                 approvals = json.loads(approvals)
             except Exception:
                 approvals = []

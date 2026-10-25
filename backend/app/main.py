@@ -89,6 +89,7 @@ async def prometheus_metrics() -> Response:
 if __name__ == "__main__":
     import sys
     from pathlib import Path
+
     import uvicorn
 
     backend_dir = Path(__file__).resolve().parent.parent
