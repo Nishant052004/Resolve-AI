@@ -61,6 +61,25 @@ def _case_out(case: Case) -> dict:
     return CaseOut.model_validate(case).model_dump(mode="json")
 
 
+# ----------------------------------------------------------------- root & info
+
+
+@router.get("", include_in_schema=False)
+@router.get("/", include_in_schema=False)
+def api_root() -> dict:
+    return {
+        "status": "online",
+        "service": "Resolve AI API",
+        "docs": "/docs",
+        "endpoints": [
+            "/api/auth/login",
+            "/api/refund-requests",
+            "/api/cases",
+            "/api/metrics",
+        ],
+    }
+
+
 # ----------------------------------------------------------------- auth
 
 

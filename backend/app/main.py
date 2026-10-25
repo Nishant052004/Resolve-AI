@@ -5,8 +5,9 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .agent.orchestrator import Orchestrator
 from .api.routes import router as api_router
@@ -77,6 +78,24 @@ if not get_settings().tool_base_url:
     app.mount("/mock-tools", mock_tools_app)
 
 
+@app.get("/")
+async def root() -> dict:
+    return {
+        "status": "online",
+        "service": "Resolve AI (ARRA) — Autonomous Refund Resolution Agent",
+        "version": "1.0.0",
+        "documentation": "/docs",
+        "health": "/health",
+        "frontend": "https://resolve-ai-umber.vercel.app",
+        "api_endpoints": {
+            "auth_login": "/api/auth/login",
+            "refund_requests": "/api/refund-requests",
+            "cases": "/api/cases",
+            "metrics": "/api/metrics",
+        },
+    }
+
+
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
@@ -86,6 +105,19 @@ async def health() -> dict:
 async def prometheus_metrics() -> Response:
     body, content_type = render_metrics()
     return Response(content=body, media_type=content_type)
+
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Not Found",
+            "message": f"Endpoint '{request.url.path}' was not found.",
+            "docs": "/docs",
+            "health": "/health",
+        },
+    )
 
 
 if __name__ == "__main__":
