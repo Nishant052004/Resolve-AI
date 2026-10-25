@@ -10,6 +10,14 @@
 
 ---
 
+## 🌐 Live Deployments
+
+- **Frontend Dashboard (Vercel)**: [https://resolve-ai-umber.vercel.app](https://resolve-ai-umber.vercel.app)
+- **Backend API (Render)**: [https://resolve-ai-wlim.onrender.com](https://resolve-ai-wlim.onrender.com)
+- **Interactive API Docs (Swagger UI)**: [https://resolve-ai-wlim.onrender.com/docs](https://resolve-ai-wlim.onrender.com/docs)
+
+---
+
 ## 🚀 Key Features
 
 - **Autonomous Resolution Engine**: Resolves routine, low-risk refund claims within milliseconds without human intervention.
