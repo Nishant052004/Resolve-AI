@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+sqlalchemy>=2.0
+httpx>=0.26
+prometheus-client>=0.19
+pydantic>=2.5
+redis>=5.0.0
+psycopg2-binary>=2.9.9
+

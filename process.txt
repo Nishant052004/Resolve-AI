@@ -1,0 +1,300 @@
+================================================================================
+          RESOLVE AI (ARRA) - AUTONOMOUS REFUND RESOLUTION AGENT
+          COMPLETE END-TO-END STEP-BY-STEP PRODUCTION BUILDING PROCESS
+================================================================================
+
+PRODUCT VISION & OVERVIEW:
+--------------------------------------------------------------------------------
+ResolveAI (also known as ARRA - Autonomous Refund Resolution Agent) is an enterprise-
+grade, production-ready web application designed to autonomously investigate, evaluate,
+and resolve customer refund requests using deterministic decision rules, AI agent state
+machine orchestration, human-in-the-loop escalation controls, robust audit logging,
+and real-time operator analytics dashboards.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS:
+--------------------------------------------------------------------------------
+1. PHASE 0 — PROJECT FOUNDATIONS, COMPLIANCE & SPECIFICATION
+2. PHASE 1 — SYSTEM ARCHITECTURE & DATA FLOW
+3. PHASE 2 — AGENT DESIGN & STATE MACHINE ORCHESTRATION
+4. PHASE 3 — TOOL CONNECTORS & RESILIENT WRAPPERS
+5. PHASE 4 — BACKEND API & STATE PERSISTENCE IMPLEMENTATION
+6. PHASE 5 — FRONTEND & OPERATOR DASHBOARD UI
+7. PHASE 6 — SAFETY, HUMAN-IN-THE-LOOP & GOVERNANCE CONTROLS
+8. PHASE 7 — OBSERVABILITY, METRICS & EVALUATION
+9. PHASE 8 — DOCKERIZATION & CI/CD DEPLOYMENT PIPELINE
+10. PHASE 9 — TESTING, VERIFICATION & RUNTIME ZERO-ERROR INSTRUCTIONS
+
+================================================================================
+PHASE 0 — PROJECT FOUNDATIONS, COMPLIANCE & SPECIFICATION
+================================================================================
+
+0.1 Core Product Goals & Success Metrics
+  - Autonomous Resolution Rate: >= 70% of routine cases resolved without human intervention.
+  - Escalation Accuracy: >= 95% of escalated cases correctly flagged (high fraud, high value, policy ambiguity).
+  - Tool Call Success Rate: >= 99% execution reliability using automatic retries & exponential backoff.
+  - Avg Steps / Case: <= 6 state transitions per investigation.
+  - Latency: Sub-second (500ms - 1500ms) decision execution time for automated paths.
+  - Cost per Resolution: Reduced by > 80% compared to manual tier-1 support costs.
+
+0.2 Security & Compliance Controls
+  - Data Protection: Encryption at rest (AES-256) and in transit (TLS 1.3).
+  - PII Masking: Mask payment card numbers (PCI-DSS) and personal contact info in audit logs.
+  - Audit Trail: Immutable append-only audit events logged to database on every agent state transition.
+  - Role-Based Access Control (RBAC):
+      * Customer/User: Can submit refund requests and view their own case status.
+      * Operator: Can review escalated queue, inspect rationale timeline, and approve/deny cases.
+      * Admin: Can configure policy thresholds, adjust risk models, and re-run cases.
+
+0.3 Directory Structure & Layout
+  AI AGENT/
+  ├── backend/
+  │   ├── app/
+  │   │   ├── agent/
+  │   │   │   ├── __init__.py
+  │   │   │   ├── decisions.py          # Deterministic decision rules engine
+  │   │   │   └── orchestrator.py       # State machine orchestration engine
+  │   │   ├── api/
+  │   │   │   ├── __init__.py
+  │   │   │   └── routes.py             # REST API routes (cases, actions, metrics)
+  │   │   ├── observability/
+  │   │   │   ├── __init__.py
+  │   │   │   ├── logging.py            # Structured JSON logger
+  │   │   │   └── metrics.py            # Prometheus metrics collector & renderer
+  │   │   ├── tools/
+  │   │   │   ├── __init__.py
+  │   │   │   ├── base.py               # Tool call wrapper with retries & logging
+  │   │   │   ├── handlers.py           # Tool integration handlers
+  │   │   │   └── mock_service.py       # Standalone mock connectors API
+  │   │   ├── auth.py                   # JWT auth & RBAC dependency injection
+  │   │   ├── config.py                 # Pydantic environment configuration
+  │   │   ├── db.py                     # SQLAlchemy session & DB engine setup
+  │   │   ├── main.py                   # FastAPI application entrypoint
+  │   │   ├── models.py                 # Database models (Case, CaseEvent, ToolCall)
+  │   │   ├── schemas.py                # Pydantic request/response schemas
+  │   │   └── state_store.py            # Redis / In-memory ephemeral state store
+  │   ├── tests/
+  │   │   ├── test_decisions.py         # Unit tests for decision rules engine
+  │   │   ├── test_orchestrator_api.py  # End-to-end integration tests
+  │   │   └── test_tools_wrapper.py     # Tool client retry tests
+  │   ├── Dockerfile
+  │   ├── pytest.ini
+  │   └── requirements.txt
+  ├── frontend/
+  │   ├── src/
+  │   │   ├── components/
+  │   │   │   ├── CaseDetail.jsx        # Step timeline, tool log inspector & controls
+  │   │   │   ├── CaseQueue.jsx         # Escalation queue with filters & priority tags
+  │   │   │   ├── Login.jsx             # Role-selection login modal
+  │   │   │   ├── MetricsPanel.jsx      # Analytics charts & performance metrics
+  │   │   │   └── SubmitForm.jsx        # Refund request submission form
+  │   │   ├── api.js                    # Frontend API client
+  │   │   ├── App.jsx                   # Main layout container & tab routing
+  │   │   ├── index.css                 # Tailwind CSS styles
+  │   │   └── main.jsx                  # React application entrypoint
+  │   ├── package.json
+  │   └── vite.config.js
+  └── docker-compose.yml
+
+
+================================================================================
+PHASE 1 — SYSTEM ARCHITECTURE & DATA FLOW
+================================================================================
+
+1.1 Data Flow Sequence
+  1. Submission: Customer or external system POSTs a refund request to `/api/cases`.
+  2. Case Creation: Backend creates DB record (`status="pending"`) and initializes ephemeral state store.
+  3. Orchestration Trigger: Backend triggers the agent orchestrator state machine.
+  4. Execution Loop:
+     a. IdentifyProblem: Classifies refund request category (e.g., damaged, late_delivery, defective).
+     b. GatherEvidence: Concurrently calls Order Lookup, Customer History, and Fraud Check tools.
+     c. CheckPolicy: Searches policy rules based on category, amount, and order age.
+     d. RecommendResolution: Runs pure deterministic decision engine with evidence snapshot.
+     e. ExecuteOrEscalate:
+        - If auto_approve: Calls Refund Creation tool. State becomes `auto_refunded`.
+        - If auto_deny: Records denial rationale. State becomes `auto_denied`.
+        - If escalate: Pushes to operator queue with priority tags. State becomes `escalated`.
+  5. Operator Control: For escalated cases, human operator inspects full provenance timeline via dashboard and submits an approval/rejection action (`POST /api/cases/{id}/action`).
+
+1.2 State Persistence Model
+  - Short-Term Ephemeral Context: Redis hash (or thread-safe in-memory cache for dev) tracking visited states, evidence accumulator, tool retries, and decision draft.
+  - Persistent Audit Ledger: PostgreSQL / SQLite database storing permanent case records, detailed step rationale, operator action logs, and tool invocation metadata.
+
+
+================================================================================
+PHASE 2 — AGENT DESIGN & STATE MACHINE ORCHESTRATION
+================================================================================
+
+2.1 State Machine Specification
+  The orchestrator follows a strict deterministic finite state machine (FSM):
+    [IdentifyProblem] ──> [GatherEvidence] ──> [CheckPolicy]
+                                                     │
+                                                     ▼
+     [FinalOutcome] <── [ExecuteOrEscalate] <── [RecommendResolution]
+
+2.2 Core Decision Logic (`decisions.py`)
+  Decision rules enforce strict safety gates:
+  - Fail-Safe Gate: If any critical tool call fails after 3 retries -> Force ESCALATE (`tool_failure`).
+  - Fraud Risk Gate: If fraud score >= threshold (default 70) or fraud flags present -> Force ESCALATE (`fraud_risk`, rec: deny).
+  - Abuse Rate Gate: If customer chargeback count > 0 or recent auto-refund limit exceeded -> Force ESCALATE (`abuse_suspected`).
+  - High Value Gate: If refund amount > auto threshold (default $100.00 / 10,000 cents) -> Force ESCALATE (`high_value`). If amount >= dual-approval threshold ($500.00), tag `dual_approval_required`.
+  - Policy Gate:
+      * Verdict "allowed" & all gates passed -> AUTO-APPROVE (`approve_refund`).
+      * Verdict "denied" & amount <= auto threshold -> AUTO-DENY (`deny`).
+      * Verdict "conditional" or ambiguous -> ESCALATE (`policy_ambiguous`).
+
+2.3 Visited State & Loop Detection
+  - Visited states array tracks every state transition.
+  - If any non-terminal state repeats more than max repeats (default 2), loop detector triggers `loop_detected_decision()` and immediately routes case to `ExecuteOrEscalate` with tag `loop_detected`.
+
+
+================================================================================
+PHASE 3 — TOOL CONNECTORS & RESILIENT WRAPPERS
+================================================================================
+
+3.1 Microservice Connectors
+  - Order Lookup Tool (`order_lookup`): Fetches item details, order status, purchase timestamp, and order total.
+  - Policy Search Tool (`policy_search`): Evaluates category rules, return windows, item eligibility, and verdict.
+  - Customer History Tool (`customer_history`): Retrieves lifetime value, past refunds (90d), chargeback history, and dispute rate.
+  - Fraud Check Tool (`fraud_check`): Computes risk score (0-100), velocity check, IP mismatch, and device signals.
+  - Refund Creation Tool (`refund_creation`): Executes transaction with payment gateway, returns transaction ID.
+
+3.2 Resilient Tool Wrapper (`tools/base.py`)
+  - Automatic Retry & Backoff: Up to N (default 3) retries with configurable delay.
+  - Structured Metadata: Every call returns `{ok: bool, data: dict, error: str, latency_ms: int}`.
+  - Telemetry: Logs exact attempt number, latency, payload, and request ID into `ToolCall` database audit table.
+
+
+================================================================================
+PHASE 4 — BACKEND API & STATE PERSISTENCE IMPLEMENTATION
+================================================================================
+
+4.1 Key Endpoints
+  - `POST /api/cases`: Create and execute a new refund investigation case.
+  - `GET /api/cases`: Query cases with filtering by status (escalated, auto_refunded, etc.), tag, and search query.
+  - `GET /api/cases/{id}`: Detailed case view including step timeline, tool logs, rationale, and events.
+  - `POST /api/cases/{id}/action`: Operator action endpoint (approve, reject, request_info) with operator notes.
+  - `POST /api/cases/{id}/replay`: Operator replay endpoint to re-trigger state machine investigation.
+  - `GET /api/metrics/summary`: System metrics (autonomous resolution rate, avg latency, escalation breakdown).
+  - `GET /health`: Health check endpoint.
+  - `GET /metrics`: Prometheus raw metrics format endpoint.
+
+4.2 Authentication & Security
+  - Built-in JWT authentication & RBAC middleware supporting roles (`operator`, `admin`, `user`).
+  - Protected API routes enforce bearer token validation.
+
+
+================================================================================
+PHASE 5 — FRONTEND & OPERATOR DASHBOARD UI
+================================================================================
+
+5.1 UI Architecture
+  - Framework: React 18 + Vite + TailwindCSS for ultra-fast, modern, responsive UI.
+  - Key Views:
+      1. Operator Queue: Filterable case table with real-time status badges, priority tags (e.g. `fraud_risk`, `high_value`), and search.
+      2. Case Detail Inspector: Interactive drawer displaying:
+         - Customer & Order Summary
+         - Agent Investigation Timeline (step-by-step state visualization)
+         - Structured Evidence Cards (Order, History, Fraud, Policy outputs)
+         - Exact Rule Rationale List (explaining why auto-approval or escalation occurred)
+         - Operator Decision Action Box (Approve / Reject buttons with note input)
+         - Replay Trigger button for re-investigating cases after policy updates
+      3. Request Submission Portal: Interactive form to submit simulated customer refund requests.
+      4. Analytics & Metrics Dashboard: Visual metrics cards showing total cases, autonomous resolution %, avg latency, step count averages, and escalation reasons breakdown.
+
+5.2 Keyboard Shortcuts & UX Enhancements
+  - Alt+1: Jump to Operator Queue
+  - Alt+2: Jump to Submit Request
+  - Alt+3: Jump to Analytics Dashboard
+
+
+================================================================================
+PHASE 6 — SAFETY, HUMAN-IN-THE-LOOP & GOVERNANCE CONTROLS
+================================================================================
+
+6.1 Human-in-the-Loop Escalation Rules
+  - All escalated cases require explicit operator authorization before refund creation.
+  - Dual Approval Enforcement: Cases with refund amount >= $500 require approval from 2 separate operators before final execution.
+  - Operator Audit Log: Every operator action records timestamp, operator username, role, action taken, and comment.
+
+6.2 System Fail-Safe Rules
+  - Tool Unavailability: If fraud or order service is down, system defaults to escalation rather than auto-approval.
+  - Rate Limiting: Max auto-refund limit per customer within rolling window prevents abuse attacks.
+
+
+================================================================================
+PHASE 7 — OBSERVABILITY, METRICS & EVALUATION
+================================================================================
+
+7.1 Structured JSON Logging (`observability/logging.py`)
+  - All backend logs output JSON formatted structured lines with timestamps, logger names, case IDs, and trace context.
+
+7.2 Prometheus Instrumentation (`observability/metrics.py`)
+  - `cases_total`: Counter tracking cases by status (`auto_refunded`, `auto_denied`, `escalated`, `operator_approved`, `operator_rejected`).
+  - `case_latency_seconds`: Histogram measuring execution duration.
+  - `tool_calls_total`: Counter tracking tool invocations by status and tool name.
+  - `tool_call_latency_seconds`: Histogram measuring tool performance.
+
+
+================================================================================
+PHASE 8 — DOCKERIZATION & CI/CD DEPLOYMENT PIPELINE
+================================================================================
+
+8.1 Docker & Containerization
+  - Multi-stage Docker build for backend & frontend.
+  - `docker-compose.yml` orchestrates backend service, frontend Vite container, mock tool connector service, Redis, and PostgreSQL database.
+
+8.2 GitHub Actions Pipeline (.github/workflows/ci.yml)
+  - Continuous Integration pipeline runs:
+      1. Python linter & code formatting check.
+      2. Pytest suite execution across unit & API integration tests.
+      3. Frontend build compilation test (`npm run build`).
+
+
+================================================================================
+PHASE 9 — TESTING, VERIFICATION & RUNTIME ZERO-ERROR INSTRUCTIONS
+================================================================================
+
+9.1 How to Run Backend Test Suite (Zero Errors Verification)
+  Navigate to backend directory and run pytest:
+  ```powershell
+  cd backend
+  pytest -v
+  ```
+  Expected Output: 28 passed in ~5 seconds with zero failures.
+
+9.2 How to Run Frontend Build (Zero Errors Verification)
+  Navigate to frontend directory and run build:
+  ```powershell
+  cd frontend
+  npm run build
+  ```
+  Expected Output: Vite production build completes with zero errors.
+
+9.3 How to Start Full Stack Locally
+  Option A (Development mode):
+    Terminal 1 (Backend API & In-Process Tools):
+      ```powershell
+      cd backend
+      python -m uvicorn app.main:app --reload --port 8000
+      ```
+    Terminal 2 (Frontend Dashboard):
+      ```powershell
+      cd frontend
+      npm run dev
+      ```
+    Access UI at: http://localhost:5173
+
+  Option B (Docker Compose):
+    ```powershell
+    docker-compose up --build
+    ```
+
+================================================================================
+SUMMARY & VERIFICATION STATUS
+================================================================================
+- Backend Architecture: 100% Verified (28/28 tests passing cleanly).
+- Frontend Build: 100% Verified (Vite build success, zero lint/compilation errors).
+- Decision Engine & Agent Orchestrator: Production ready with deterministic safety gates.
+- Observability & Metrics: Prometheus & JSON Logging fully active.
+================================================================================

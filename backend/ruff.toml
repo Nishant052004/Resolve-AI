@@ -1,0 +1,21 @@
+# Lint gate for the ARRA backend (mirrors .github/workflows/ci.yml).
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "B008", # FastAPI idiom: Depends(...) / require_role(...) in parameter defaults
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["E501"]
