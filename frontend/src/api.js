@@ -3,6 +3,12 @@
 const TOKEN_KEY = "arra_token";
 const USER_KEY = "arra_user";
 
+export const API_BASE_URL = (
+  import.meta.env?.VITE_API_URL ||
+  import.meta.env?.VITE_API_BASE_URL ||
+  "https://resolve-ai-wlim.onrender.com"
+).replace(/\/+$/, "");
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -30,11 +36,15 @@ async function request(path, options = {}) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+
   let resp;
   try {
-    resp = await fetch(path, { ...options, headers });
+    resp = await fetch(url, { ...options, headers });
   } catch {
-    const err = new Error("Cannot connect to server. Please verify backend is running on http://127.0.0.1:8000");
+    const err = new Error(
+      `Cannot connect to server. Please verify backend is running on ${API_BASE_URL}`
+    );
     err.status = 0;
     throw err;
   }
@@ -51,7 +61,7 @@ async function request(path, options = {}) {
       if (resp.status === 500) {
         msg = "Backend server error (HTTP 500). Please check backend console logs.";
       } else if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
-        msg = `Backend unreachable (HTTP ${resp.status}). Ensure backend is running on http://127.0.0.1:8000.`;
+        msg = `Backend unreachable (HTTP ${resp.status}). Ensure backend is running on ${API_BASE_URL}.`;
       } else {
         msg = `HTTP ${resp.status}`;
       }
